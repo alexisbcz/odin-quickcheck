@@ -161,7 +161,7 @@ run :: proc(property: Property, config := Config{}, allocator := context.allocat
 
 	attempt := 0
 	for result.cases < cfg.cases {
-		if result.discarded >= cfg.max_discards {
+		if result.discarded > cfg.max_discards {
 			result.status = .Gave_Up
 			return result, nil
 		}

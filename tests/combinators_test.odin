@@ -297,7 +297,8 @@ test_filtered_impossible_predicate_gives_up :: proc(t: ^testing.T) {
 	defer qc.result_destroy(&result)
 	testing.expect_value(t, err, nil)
 	testing.expect_value(t, result.status, qc.Status.Gave_Up)
-	testing.expect_value(t, result.discarded, 100)
+	// The default limit is cases * DEFAULT_DISCARD_RATIO = 100, so the run gives up on discard 101.
+	testing.expect_value(t, result.discarded, 101)
 	testing.expect_value(t, result.cases, 0)
 }
 

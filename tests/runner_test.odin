@@ -188,7 +188,8 @@ test_assume_always_false_gives_up :: proc(t: ^testing.T) {
 	defer qc.result_destroy(&result)
 	testing.expect_value(t, err, nil)
 	testing.expect_value(t, result.status, qc.Status.Gave_Up)
-	testing.expect_value(t, result.discarded, 7)
+	// The run tolerates 7 discards and gives up on the 8th.
+	testing.expect_value(t, result.discarded, 8)
 }
 
 @(test)
