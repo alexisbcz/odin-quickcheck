@@ -1,5 +1,6 @@
 package quickcheck
 
+import "base:intrinsics"
 import "base:runtime"
 import "core:math"
 import "core:mem"
@@ -50,23 +51,28 @@ arbitrary_fill :: proc(s: ^Source, ptr: rawptr, ti: ^runtime.Type_Info, depth: i
 	base := runtime.type_info_base(ti)
 	#partial switch info in base.variant {
 	case runtime.Type_Info_Integer:
-		write_integer(ptr, base.size, draw_integer_bits(s, base.size, info.signed), info.signed)
+		write_integer(ptr, base.size, draw_integer_bits(s, base.size, info.signed), info.signed, swapped(info.endianness))
 	case runtime.Type_Info_Rune:
 		(^rune)(ptr)^ = any_rune(s)
 	case runtime.Type_Info_Boolean:
 		write_integer(ptr, base.size, draw_choice(s, 1))
 	case runtime.Type_Info_Float:
 		v := float_unbounded(s, false, false)
+		// Write the bits through write_integer, which byte-swaps them for
+		// floats such as f32be whose byte order isn't the platform's.
+		bits: u64
 		switch base.size {
 		case 2:
-			(^f16)(ptr)^ = f16(clamp(v, -65504, 65504))
+			bits = u64(transmute(u16)f16(clamp(v, -65504, 65504)))
 		case 4:
-			(^f32)(ptr)^ = f32(clamp(v, -f64(math.F32_MAX), f64(math.F32_MAX)))
+			bits = u64(transmute(u32)f32(clamp(v, -f64(math.F32_MAX), f64(math.F32_MAX))))
 		case 8:
-			(^f64)(ptr)^ = v
+			bits = transmute(u64)v
 		case:
 			set_error(s, Generator_Error.Unsupported_Type)
+			return
 		}
+		write_integer(ptr, base.size, bits, false, swapped(info.endianness))
 	case runtime.Type_Info_String:
 		if info.encoding != .UTF_8 {
 			set_error(s, Generator_Error.Unsupported_Type)
@@ -96,7 +102,7 @@ arbitrary_fill :: proc(s: ^Source, ptr: rawptr, ti: ^runtime.Type_Info, depth: i
 			return
 		}
 		i := draw_choice(s, u64(len(info.values) - 1))
-		write_integer(ptr, base.size, u64(info.values[i]))
+		write_integer(ptr, base.size, u64(info.values[i]), swap = integer_swapped(info.base))
 	case runtime.Type_Info_Bit_Set:
 		if info.upper < info.lower {
 			return
@@ -107,7 +113,7 @@ arbitrary_fill :: proc(s: ^Source, ptr: rawptr, ti: ^runtime.Type_Info, depth: i
 				set |= u64(1) << u64(i)
 			}
 		}
-		write_integer(ptr, base.size, set)
+		write_integer(ptr, base.size, set, swap = integer_swapped(info.underlying))
 	case runtime.Type_Info_Array:
 		for i in 0 ..< info.count {
 			arbitrary_fill(s, rawptr(uintptr(ptr) + uintptr(i * info.elem_size)), info.elem, depth)
@@ -177,23 +183,52 @@ draw_integer_bits :: proc(s: ^Source, size: int, signed: bool) -> u64 {
 	return draw_choice(s, max(u64) >> (64 - width))
 }
 
-// write_integer stores the low `size` bytes of `v` at `ptr`, sign-extending signed 128-bit integers.
+// swapped reports whether a value with byte order `e` is stored in the reverse of the platform's byte order.
 @(private)
-write_integer :: proc(ptr: rawptr, size: int, v: u64, signed := false) {
+swapped :: proc(e: runtime.Platform_Endianness) -> bool {
+	switch e {
+	case .Platform:
+		return false
+	case .Little:
+		return ODIN_ENDIAN != .Little
+	case .Big:
+		return ODIN_ENDIAN != .Big
+	}
+	return false
+}
+
+// integer_swapped reports whether the integer type `ti` is stored in the reverse of the platform's byte order.
+@(private)
+integer_swapped :: proc(ti: ^runtime.Type_Info) -> bool {
+	if ti == nil {
+		return false
+	}
+	if info, ok := runtime.type_info_base(ti).variant.(runtime.Type_Info_Integer); ok {
+		return swapped(info.endianness)
+	}
+	return false
+}
+
+/*
+write_integer stores the low `size` bytes of `v` at `ptr`, sign-extending
+signed 128-bit integers. When `swap` is true it stores the bytes in reverse
+order, for types such as u16be on a little-endian platform.
+*/
+@(private)
+write_integer :: proc(ptr: rawptr, size: int, v: u64, signed := false, swap := false) {
 	switch size {
 	case 1:
 		(^u8)(ptr)^ = u8(v)
 	case 2:
-		(^u16)(ptr)^ = u16(v)
+		x := u16(v)
+		(^u16)(ptr)^ = swap ? intrinsics.byte_swap(x) : x
 	case 4:
-		(^u32)(ptr)^ = u32(v)
+		x := u32(v)
+		(^u32)(ptr)^ = swap ? intrinsics.byte_swap(x) : x
 	case 8:
-		(^u64)(ptr)^ = v
+		(^u64)(ptr)^ = swap ? intrinsics.byte_swap(v) : v
 	case 16:
-		if signed {
-			(^i128)(ptr)^ = i128(i64(v))
-		} else {
-			(^u128)(ptr)^ = u128(v)
-		}
+		x := signed ? u128(i128(i64(v))) : u128(v)
+		(^u128)(ptr)^ = swap ? intrinsics.byte_swap(x) : x
 	}
 }
