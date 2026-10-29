@@ -158,8 +158,8 @@ odin run examples/basic
 
 - Shrinking needs no extra code. Generators record each random decision as a bounded choice, and the shrinker simplifies that one sequence. Values built with `mapped`, `filtered` or a custom generator therefore shrink without a hand-written shrinker, and a shrunk value always meets the same constraints as a generated one.
 - Runs are deterministic. A run with the same seed and property gives the same counterexample. `check` uses the test runner's seed when `Config.seed` is 0, and prints the seed when a property fails.
-- Each case draws into an arena that the runner resets after the case. Inside a property, `context.allocator` is that arena, so properties never free what they draw.
-- Malformed generator arguments, such as `lo > hi` or an empty alphabet, never panic. The generator records a `Generator_Error`, and `run` stops and returns it.
+- Each case draws into an arena that the runner resets after the case. Inside a property, `context.allocator` is that arena, so properties never free what they draw. Code under test may still call `free`, `delete` or `free_all` on it: those calls succeed and do nothing.
+- Malformed generator arguments, such as `lo > hi`, an empty alphabet or a nil generator, never panic. The generator records a `Generator_Error`, and `run` stops and returns it.
 - The package keeps no global mutable state. A `Source` is safe to use from one thread at a time, and separate runs may happen on separate threads.
 
 ## Testing

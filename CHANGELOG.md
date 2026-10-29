@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-29
+
+### Added
+
+- `Generator_Error.Nil_Procedure`, which `slice_of`, `mapped`, `filtered`, `maybe_of` and `draw` record when they receive a nil procedure.
+
+### Fixed
+
+- The run gave up on reaching `Config.max_discards` discarded cases, not after exceeding it as documented.
+- `arbitrary` ignored explicit byte order, so types such as `u16be` shrank to the wrong boundary and `f32be` could produce NaN.
+- Slices of signed integers, and other elements that cost three choices, didn't shrink to the minimal number of elements.
+- A nil generator, mapping procedure or predicate crashed the run instead of returning an error.
+- `free` and `delete` on `context.allocator` inside a property returned `Mode_Not_Implemented`, and `free_all` released values the case had already drawn.
+- A string generator that ran out of memory reported `Invalid_Length` instead of the allocator error.
+
 ## [0.1.0] - 2026-10-29
 
 ### Added
@@ -18,5 +33,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `assume` to discard cases and `note` to annotate counterexamples.
 - `Config_Error` and `Generator_Error` values for malformed configuration and generator arguments, so the library never panics on bad input.
 
-[Unreleased]: https://github.com/alexisbcz/odin-quickcheck/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/alexisbcz/odin-quickcheck/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/alexisbcz/odin-quickcheck/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/alexisbcz/odin-quickcheck/releases/tag/v0.1.0
