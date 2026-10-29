@@ -500,7 +500,7 @@ check :: proc(t: ^testing.T, property: Property, config := Config{}, loc := #cal
 			result.cases,
 			result.shrinks,
 			result.seed,
-			result.counterexample,
+			strings.trim_right(result.counterexample, "\n"),
 			flaky,
 			loc = loc,
 		)
