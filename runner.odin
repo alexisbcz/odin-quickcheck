@@ -291,8 +291,10 @@ shrink :: proc(r: ^Runner, best: ^[dynamic]u64) {
 	for improved && budget_left(r) {
 		improved = false
 
-		// Pass 1: delete chunks, which drops elements and whole branches.
-		for k := 8; k >= 1; k /= 2 {
+		// Pass 1: delete chunks, which drops elements and whole branches. A
+		// chunk of 3 drops a collection element that costs a length flag, a
+		// sign and a magnitude, such as a signed integer.
+		for k in ([5]int{8, 4, 3, 2, 1}) {
 			i := len(best) - k
 			for i >= 0 && budget_left(r) {
 				if !set_candidate(r, &candidate, best[:i], best[i + k:]) {

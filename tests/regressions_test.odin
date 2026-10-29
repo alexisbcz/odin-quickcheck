@@ -55,6 +55,27 @@ test_arbitrary_big_endian_floats_are_finite :: proc(t: ^testing.T) {
 	}, "draw 1: 101\n")
 }
 
+gen_signed :: proc(s: ^qc.Source) -> int {
+	return qc.int_range(s, -10_000, 10_000)
+}
+
+@(test)
+test_slice_of_signed_elements_shrinks_to_one_element :: proc(t: ^testing.T) {
+	track := track_begin()
+	context.allocator = mem_tracking(&track)
+	defer track_end(t, &track)
+	// Each signed element costs three choices: a length flag, a sign and a
+	// magnitude. The shrinker must be able to drop all three at once.
+	expect_counterexample(t, proc(s: ^qc.Source) -> bool {
+		for x in qc.slice_of(s, gen_signed, 0, 50) {
+			if x > 100 {
+				return false
+			}
+		}
+		return true
+	}, "draw 1: [101]\n")
+}
+
 
 Wide :: enum u16be {
 	Low  = 1,
