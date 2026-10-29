@@ -10,11 +10,16 @@ Example:
 	digits := qc.slice_of(s, gen_digit, 1, 10)
 
 Returns: the slice, or `nil` with `.Invalid_Length` recorded when
-`min_len < 0` or `max_len < min_len`.
+`min_len < 0` or `max_len < min_len`, or with `.Nil_Procedure` recorded when
+`gen` is nil.
 */
 slice_of :: proc(s: ^Source, gen: proc(s: ^Source) -> $T, min_len, max_len: int) -> []T {
 	enter(s)
 	zero: []T
+	if gen == nil {
+		set_error(s, Generator_Error.Nil_Procedure)
+		return leave(s, zero)
+	}
 	if min_len < 0 || max_len < min_len {
 		set_error(s, Generator_Error.Invalid_Length)
 		return leave(s, zero)
@@ -140,11 +145,19 @@ frequency :: proc(s: ^Source, $T: typeid, entries: ..Weighted(T)) -> T {
 mapped draws a value with `gen` and returns `f` applied to it. Odin reserves
 the word `map`, hence the name. The result shrinks as the input does.
 
+Returns: `f(gen(s))`, or the zero value with `.Nil_Procedure` recorded when
+`gen` or `f` is nil.
+
 Example:
 	even := qc.mapped(s, gen_digit, proc(n: int) -> int { return n * 2 })
 */
 mapped :: proc(s: ^Source, gen: proc(s: ^Source) -> $A, f: proc(a: A) -> $B) -> B {
 	enter(s)
+	if gen == nil || f == nil {
+		set_error(s, Generator_Error.Nil_Procedure)
+		zero: B
+		return leave(s, zero)
+	}
 	return leave(s, f(gen(s)))
 }
 
@@ -155,13 +168,18 @@ filtered draws values with `gen` until one satisfies `pred`, trying at most
 Returns:
 - value: the first value that passed, or the last one tried.
 - ok: false when no value passed. The runner then discards the case, so the
-  property should return right away.
+  property should return right away. Also false, with `.Nil_Procedure`
+  recorded, when `gen` or `pred` is nil.
 
 Prefer a generator that builds valid values directly; a filter that rejects
 most values makes the run give up.
 */
 filtered :: proc(s: ^Source, gen: proc(s: ^Source) -> $T, pred: proc(v: T) -> bool, max_tries := 100) -> (value: T, ok: bool) {
 	enter(s)
+	if gen == nil || pred == nil {
+		set_error(s, Generator_Error.Nil_Procedure)
+		return leave(s, value), false
+	}
 	for _ in 0 ..< max(max_tries, 1) {
 		value = gen(s)
 		if failed(s) {
@@ -177,10 +195,14 @@ filtered :: proc(s: ^Source, gen: proc(s: ^Source) -> $T, pred: proc(v: T) -> bo
 
 /*
 maybe_of draws `nil` or a value from `gen`, with even odds for a fresh case.
-It shrinks toward `nil`.
+It shrinks toward `nil`. A nil `gen` records `.Nil_Procedure` and returns `nil`.
 */
 maybe_of :: proc(s: ^Source, gen: proc(s: ^Source) -> $T) -> Maybe(T) {
 	enter(s)
+	if gen == nil {
+		set_error(s, Generator_Error.Nil_Procedure)
+		return leave(s, Maybe(T)(nil))
+	}
 	if draw_choice(s, 1) == 0 {
 		return leave(s, Maybe(T)(nil))
 	}

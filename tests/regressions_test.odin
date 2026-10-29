@@ -76,6 +76,52 @@ test_slice_of_signed_elements_shrinks_to_one_element :: proc(t: ^testing.T) {
 	}, "draw 1: [101]\n")
 }
 
+@(test)
+test_nil_procedures_are_reported_not_called :: proc(t: ^testing.T) {
+	track := track_begin()
+	context.allocator = mem_tracking(&track)
+	defer track_end(t, &track)
+	nil_gen :: proc(s: ^qc.Source) -> int {
+		g: proc(s: ^qc.Source) -> int
+		return qc.draw(s, g)
+	}
+	want := qc.Error(qc.Generator_Error.Nil_Procedure)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		g: proc(s: ^qc.Source) -> int
+		_ = qc.slice_of(s, g, 1, 3)
+		return true
+	}, want)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		g: proc(s: ^qc.Source) -> int
+		_ = qc.mapped(s, g, proc(n: int) -> int { return n })
+		return true
+	}, want)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		f: proc(n: int) -> int
+		_ = qc.mapped(s, gen_digit, f)
+		return true
+	}, want)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		g: proc(s: ^qc.Source) -> int
+		_, _ = qc.filtered(s, g, proc(n: int) -> bool { return true })
+		return true
+	}, want)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		p: proc(n: int) -> bool
+		_, _ = qc.filtered(s, gen_digit, p)
+		return true
+	}, want)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		g: proc(s: ^qc.Source) -> int
+		_ = qc.maybe_of(s, g)
+		return true
+	}, want)
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		_ = nil_gen(s)
+		return true
+	}, want)
+}
+
 
 Wide :: enum u16be {
 	Low  = 1,

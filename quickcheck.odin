@@ -86,6 +86,8 @@ Generator_Error :: enum {
 	Invalid_Weights,
 	// arbitrary met a type it can't build, such as a pointer, map or procedure.
 	Unsupported_Type,
+	// A combinator received a nil generator, mapping procedure or predicate.
+	Nil_Procedure,
 }
 
 /*

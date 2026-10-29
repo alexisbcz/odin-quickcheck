@@ -231,9 +231,17 @@ Example:
 		return {qc.int_range(s, -9, 9), qc.int_range(s, -9, 9)}
 	}
 	p := qc.draw(s, gen_point) // reported as "draw 1: Point{x = 0, y = 3}"
+
+Returns: what `gen` returns, or the zero value with `.Nil_Procedure` recorded
+when `gen` is nil.
 */
 draw :: proc(s: ^Source, gen: proc(s: ^Source) -> $T) -> T {
 	enter(s)
+	if gen == nil {
+		set_error(s, Generator_Error.Nil_Procedure)
+		zero: T
+		return leave(s, zero)
+	}
 	return leave(s, gen(s))
 }
 
