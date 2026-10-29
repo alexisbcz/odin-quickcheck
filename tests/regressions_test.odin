@@ -122,6 +122,30 @@ test_nil_procedures_are_reported_not_called :: proc(t: ^testing.T) {
 	}, want)
 }
 
+@(test)
+test_property_may_free_what_it_allocates :: proc(t: ^testing.T) {
+	track := track_begin()
+	context.allocator = mem_tracking(&track)
+	defer track_end(t, &track)
+	// Code under test often frees through context.allocator and checks the
+	// result. Inside a property that is the case arena, so freeing must succeed.
+	expect_passes(t, proc(s: ^qc.Source) -> bool {
+		xs := qc.slice_of(s, gen_digit, 1, 5)
+		p := new(int)
+		if free(p) != nil {
+			return false
+		}
+		buf := make([]byte, 10_000)
+		if delete(buf) != nil {
+			return false
+		}
+		// free_all must not release values the case already drew.
+		_ = free_all(context.allocator)
+		_ = make([]int, 64)
+		return len(xs) >= 1 && xs[0] >= 0 && xs[0] <= 9
+	})
+}
+
 
 Wide :: enum u16be {
 	Low  = 1,

@@ -85,6 +85,43 @@ runner_destroy :: proc(r: ^Runner) {
 }
 
 /*
+case_allocator wraps the case arena. Frees succeed and do nothing, because
+the runner releases the whole arena when the case ends; the bare arena would
+report `.Mode_Not_Implemented` to code under test that checks what `free` or
+`delete` returns. Free_All also does nothing, so code under test can't release
+values the case already drew.
+*/
+@(private)
+case_allocator :: proc(arena: ^mem.Dynamic_Arena) -> runtime.Allocator {
+	return {procedure = case_allocator_proc, data = arena}
+}
+
+@(private)
+case_allocator_proc :: proc(
+	data: rawptr,
+	mode: runtime.Allocator_Mode,
+	size, alignment: int,
+	old_memory: rawptr,
+	old_size: int,
+	loc := #caller_location,
+) -> (
+	[]byte,
+	runtime.Allocator_Error,
+) {
+	#partial switch mode {
+	case .Free, .Free_All:
+		return nil, nil
+	case .Query_Features:
+		set := (^runtime.Allocator_Mode_Set)(old_memory)
+		if set != nil {
+			set^ = {.Alloc, .Alloc_Non_Zeroed, .Free, .Free_All, .Resize, .Resize_Non_Zeroed, .Query_Features}
+		}
+		return nil, nil
+	}
+	return mem.dynamic_arena_allocator_proc(data, mode, size, alignment, old_memory, old_size, loc)
+}
+
+/*
 execute runs the property once. It replays `prefix`, then draws fresh random
 choices when `generating`, or zeros otherwise. The choices it made are left in
 r.source.choices.
@@ -96,7 +133,7 @@ execute :: proc(r: ^Runner, prefix: []u64, generating: bool, seed: u64, recordin
 	clear(&s.choices)
 	clear(&s.kinds)
 	strings.builder_reset(&s.log)
-	s.allocator = mem.dynamic_arena_allocator(&r.arena)
+	s.allocator = case_allocator(&r.arena)
 	s.prefix = prefix
 	s.index = 0
 	s.generating = generating
