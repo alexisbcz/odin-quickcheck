@@ -275,8 +275,9 @@ build_string :: proc(s: ^Source, min_len, max_len: int, pick: proc(s: ^Source, d
 	}
 	l := length_init(min_len, max_len)
 	for length_more(s, &l) {
-		if _, werr := strings.write_rune(&b, pick(s, data)); werr != nil {
-			set_error(s, Generator_Error.Invalid_Length)
+		bytes, n := utf8.encode_rune(pick(s, data))
+		if _, aerr := append(&b.buf, ..bytes[:n]); aerr != nil {
+			set_error(s, aerr)
 		}
 	}
 	return strings.to_string(b)

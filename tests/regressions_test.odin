@@ -2,6 +2,7 @@ package quickcheck_tests
 
 import qc ".."
 import "core:math"
+import "core:mem"
 import "core:testing"
 
 // Regression tests for defects found in review after 0.1.0.
@@ -146,6 +147,44 @@ test_property_may_free_what_it_allocates :: proc(t: ^testing.T) {
 	})
 }
 
+// no_resize_allocator serves allocations from the allocator in `data` but fails every resize.
+no_resize_allocator :: proc(backing: ^mem.Allocator) -> mem.Allocator {
+	refuse :: proc(
+		data: rawptr,
+		mode: mem.Allocator_Mode,
+		size, alignment: int,
+		old_memory: rawptr,
+		old_size: int,
+		loc := #caller_location,
+	) -> (
+		[]byte,
+		mem.Allocator_Error,
+	) {
+		#partial switch mode {
+		case .Resize, .Resize_Non_Zeroed:
+			return nil, .Out_Of_Memory
+		}
+		backing := (^mem.Allocator)(data)
+		return backing.procedure(backing.data, mode, size, alignment, old_memory, old_size, loc)
+	}
+	return {procedure = refuse, data = backing}
+}
+
+@(test)
+test_string_growth_failure_reports_allocator_error :: proc(t: ^testing.T) {
+	track := track_begin()
+	context.allocator = mem_tracking(&track)
+	defer track_end(t, &track)
+	// Two 4-byte runes overflow the 2-byte initial capacity, so the builder
+	// must grow, and the allocator refuses.
+	expect_run_error(t, proc(s: ^qc.Source) -> bool {
+		backing := s.allocator
+		s.allocator = no_resize_allocator(&backing)
+		_ = qc.string_of(s, "\U0001F600", 2, 2)
+		s.allocator = backing
+		return true
+	}, qc.Error(.Out_Of_Memory))
+}
 
 Wide :: enum u16be {
 	Low  = 1,
